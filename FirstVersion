@@ -1,0 +1,122 @@
+#include <msp430.h> 
+#include <stdio.h>
+/*
+ *
+ * Micro 2 - Recibe - SOLO RECIBE (y transmite)
+ *
+ *
+ */
+#define TXLED BIT6
+#define RXLED BIT0
+#define TXD BIT2
+#define RXD BIT1
+#define START BIT3
+unsigned char env;
+
+int main(void)
+{
+   WDTCTL = WDTPW + WDTHOLD; // Stop WDT
+
+  // P1DIR |= 0XB8; //Pines P1.4,5 y 7 (1011 0000) No usados - como salidas
+
+   P2DIR |= 0XFF;  //Puerto 2 como salidas
+
+   //P1.4 es la salida del UCA0RXBUFF (LED 3)
+
+
+   P1SEL |= RXD + TXD ; // P1.1 = RXD, P1.2=TXD
+   P1SEL2 |= RXD + TXD ; // P1.1 = RXD, P1.2=TXD
+
+   P1DIR |= BIT0 + BIT4 + BIT6;	//Elevación de los bits de BIT0 y BIT6 (01000001)
+       							//A P1DIR => P1.0 y P1.6 como salidas, TX salida
+ //  P1DIR &= ~BIT1;				//BIT2 RX Como entrada
+ //  P1OUT &= ~BIT1;  				//Inicia con valor cero el RX
+
+   P1OUT &= ~BIT4;  				//Inicia con valor cero eL LED 3
+
+   P1OUT &= ~BIT0;				//Pone un 0 en P1.0 =>LED Apagado
+   P1OUT &= ~BIT6;				//Hundimiento de bits de BIT6 en P1OUT
+       							//Pone un 0 en P1.6 => LED Apagado
+
+
+
+   DCOCTL = 0; // Select lowest DCOx and MODx settings
+   BCSCTL1 = CALBC1_1MHZ; // Set DCO
+   DCOCTL = CALDCO_1MHZ;
+
+
+
+
+
+   /* Boton micro 1
+   //Configuración del Boton
+    P1DIR &= ~BIT3;					//P1.3 como entrada (0)
+    P1REN |= BIT3;					//Resistencia PullDown Activada (Boton presionado = 1)
+         								//Ya que P1OUT = 0 por default
+
+
+    P1IE |= BIT3;				//Activamos el permiso de interrupción para el botón P1.3
+    P1IES |= BIT3;				//Flanco de bajada seleccionado (HIGH to LOW transition)
+    P1IFG &= ~BIT3;				//Bandera de interrupción en 0 - Apagada
+*/
+
+   UCA0CTL1 = UCSWRST; // **Reset USCI state machine**
+
+   UCA0CTL1 |= UCSSEL_2; // SMCLK
+   UCA0BR0 = 104; // 1MHz - 9600 Baudios
+   UCA0BR1 = 0; // 1MHz - 9600
+   UCA0MCTL = UCBRS0; // Modulation UCBRSx = 5 //UCBRS2 + UCBRS0
+
+   /*
+   P2DIR |= 0xFF; // All P2.x outputs
+   P2OUT &= 0x00; // All P2.x reset
+   */
+
+   UCA0CTL1 &= ~UCSWRST; // **Initialize USCI state machine**
+   IE2 |= UCA0RXIE; //+ UCA0TXIE; // Enable USCI_A0 TX interrupt  //UC0IE
+
+   __bis_SR_register(LPM0_bits + GIE); // Enter LPM3 w/ int until Byte RXed
+   while(1)
+   {
+
+   }
+
+}
+
+//micro 2 - recibe y asigna el valor al transmite
+
+#pragma vector=USCIAB0RX_VECTOR
+__interrupt void USCI0RX_ISR(void)
+{
+    P1OUT |= RXLED;
+	unsigned int temp;
+	///ASIGNAT CONT DE BUFFER (P1.1) A VARIABLE TEMP
+		//HACER TRES CORRIMIENTOS A LA IZQUIERDA DE TEMP (P1.4)
+		//ASUGNAR TEMP A P1OUT
+    //UC0IE |= UCA0TXIE; // Enable USCI_A0 TX interrupt
+	temp = UCA0RXBUF;
+	temp = temp << 4;  //De P1.0 a P1.4
+	P1OUT = temp;
+         //UCA0TXBUF = string[i++]; // TX next character
+        //if (i == sizeof string - 1) // TX over?
+
+    P1OUT &= ~RXLED;
+}
+
+/* no usa tx
+//Micro 2 - Recibe -> Transmite
+#pragma vector=USCIAB0TX_VECTOR
+__interrupt void USCI0TX_ISR(void)
+{
+	P1OUT |= TXLED;  //Enciende LED
+
+
+	//UCA0TXBUF = UCA0RXBUF;// env;  // UCA0TXBUF
+	//UC0IE &= ~UCA0TXIE; // Disable USCI_A0 TX interrupt
+
+	P1OUT &= ~TXLED;
+}
+
+*/
+
+//Si recibe FF enciende, si no apaga
